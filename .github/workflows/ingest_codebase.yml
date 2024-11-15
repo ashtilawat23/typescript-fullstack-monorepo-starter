@@ -1,0 +1,41 @@
+name: Ingest Codebase
+
+on:
+  workflow_dispatch:
+
+jobs:
+  call-lambda:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Send payload to Lambda
+      env:
+        LAMBDA_URI: "https://9feitwzg95.execute-api.us-east-1.amazonaws.com/dev/ingest-codebase"
+      run: |
+        # Dynamically get the repository name
+        REPO_NAME="${{ github.repository }}"
+        
+        # Construct the JSON payload
+        PAYLOAD=$(jq -n --arg repo_name "$REPO_NAME" '{"repository": $repo_name}')
+        
+        # Debug: Print the JSON payload
+        echo "Payload being sent to Lambda:"
+        echo "$PAYLOAD"
+
+        # Make the POST request to the Lambda function
+        curl -X POST "$LAMBDA_URI" \
+          -H "Content-Type: application/json" \
+          -d "$PAYLOAD" \
+          -o response.json -s -w "%{http_code}\n" > status_code.txt
+
+        # Capture the HTTP status code
+        HTTP_STATUS=$(cat status_code.txt)
+
+        # Print response for debugging
+        echo "Lambda response:"
+        cat response.json
+
+        # Exit with error if the status code is not 200
+        if [ "$HTTP_STATUS" -ne 200 ]; then
+          echo "Error: Lambda returned HTTP $HTTP_STATUS"
+          exit 1
+        fi
